@@ -1,0 +1,86 @@
+import React, { useState, useEffect, useRef } from 'react';
+
+function App() {
+  // ---------- Login ----------
+  const [user, setUser] = useState(null);
+  const [username, setUsername] = useState('');
+
+  const handleLogin = () => {
+    if(username) setUser(username);
+  };
+
+  // ---------- Chat ----------
+  const [messages, setMessages] = useState([]);
+  const [newMsg, setNewMsg] = useState('');
+  const ws = useRef(null);
+
+  useEffect(() => {
+    ws.current = new WebSocket('wss://your-backend-url');
+    ws.current.onmessage = (e) => {
+      setMessages(prev => [...prev, e.data]);
+    };
+    return () => ws.current.close();
+  }, []);
+
+  const sendMessage = () => {
+    if(newMsg){
+      ws.current.send(`${user}: ${newMsg}`);
+      setNewMsg('');
+    }
+  };
+
+  // ---------- Video Call ----------
+  const localVideoRef = useRef();
+  const remoteVideoRef = useRef();
+  const pc = useRef(new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }));
+
+  useEffect(() => {
+    // get local media
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        localVideoRef.current.srcObject = stream;
+        stream.getTracks().forEach(track => pc.current.addTrack(track, stream));
+      });
+
+    pc.current.ontrack = (event) => {
+      remoteVideoRef.current.srcObject = event.streams[0];
+    };
+  }, []);
+
+  return (
+    <div>
+      {!user ? (
+        // Login UI
+        <div>
+          <h2>Login</h2>
+          <input placeholder="Enter username" value={username} onChange={e => setUsername(e.target.value)} />
+          <button onClick={handleLogin}>Login</button>
+        </div>
+      ) : (
+        // Main App UI
+        <div>
+          <h2>Welcome, {user}</h2>
+
+          {/* Chat */}
+          <div>
+            <h3>Chat</h3>
+            <div style={{border:'1px solid #ccc', height:'150px', overflowY:'scroll'}}>
+              {messages.map((m,i)=><div key={i}>{m}</div>)}
+            </div>
+            <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} />
+            <button onClick={sendMessage}>Send</button>
+          </div>
+
+          {/* Video Call */}
+          <div>
+            <h3>Video Call</h3>
+            <video ref={localVideoRef} autoPlay muted width={150} />
+            <video ref={remoteVideoRef} autoPlay width={150} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
